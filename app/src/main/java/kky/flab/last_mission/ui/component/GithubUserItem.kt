@@ -119,10 +119,7 @@ fun InputMemoRow(
             onClick = onSaveMemo,
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
             modifier = Modifier
-                .defaultMinSize(
-                    minWidth = 1.dp,
-                    minHeight = 1.dp,
-                )
+                .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
                 .padding(start = 10.dp),
         ) {
             Text(

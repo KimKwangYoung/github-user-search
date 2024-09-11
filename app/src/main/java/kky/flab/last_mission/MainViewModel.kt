@@ -46,11 +46,9 @@ class MainViewModel @Inject constructor(
         .flatMapLatest { _keywordFlow }
         .debounce(200)
         .flatMapLatest { keyword ->
-            Log.d("MainViewModel", "step1")
-            githubUserSearchRepository.searchUser(keyword)
+            githubUserSearchRepository.flowSearchUser(keyword)
         }
         .retryWhen { cause, attempt ->
-            Log.e("MainViewModel", cause.javaClass.toString())
             when(cause) {
                 is SocketTimeoutException -> attempt < 1
                 is UnknownHostException -> attempt < 1

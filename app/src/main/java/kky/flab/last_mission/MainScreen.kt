@@ -58,7 +58,7 @@ fun MainScreen(
             when (state) {
                 is MainUiState.Fail -> FailContent(
                     message = state.message,
-                    onRetry = { viewModel.collectKeywordFlow() }
+                    onRetry = { viewModel.collectKeywordFlow() },
                 )
 
                 MainUiState.Loading -> { /* */ }
