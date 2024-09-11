@@ -25,7 +25,7 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
             emptyList()
         } else {
             val response = githubSearchApi.search(keyword)
-            response.items
+            response.items.sortedBy { it.name }
         }
 
         emit(list)
