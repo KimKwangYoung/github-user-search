@@ -16,22 +16,38 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
     private val githubSearchApi: GithubSearchApi,
 ) : GithubUserSearchRepository {
 
+    private var page = 0
+
+    private val perPage = 40
+
+    private var cachedList: MutableList<GithubUser> = mutableListOf()
+
+    private var cachedKeyword: String = ""
+
     private val removedStateFlow: MutableStateFlow<Set<Long>> = MutableStateFlow(setOf())
 
     private val memoStateFlow: MutableStateFlow<Map<Long, String>> = MutableStateFlow(mapOf())
 
     override fun flowSearchUser(keyword: String): Flow<List<GithubUser>> = flow {
+        if (keyword == cachedKeyword) {
+            page++
+        } else {
+            page = 1
+            cachedList.clear()
+            cachedKeyword = keyword
+        }
+
         val list = if (keyword.isEmpty()) {
             emptyList()
         } else {
-            val response = githubSearchApi.search(keyword)
+            val response = githubSearchApi.search(keyword, page, perPage)
             response.items.sortedBy { it.name }
         }
 
         emit(list)
     }.flatMapLatest { items ->
         removedStateFlow.map { removed ->
-            items.filter { item -> !removed.contains(item.id) }
+            items.filter { item -> removed.contains(item.id).not() }
         }
     }.flatMapLatest { items ->
         memoStateFlow.map { memoMap ->
@@ -40,6 +56,8 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
                 item.toDomain(memo ?: "")
             }
         }
+    }.map {
+        cachedList.apply { addAll(it) }
     }
 
     override fun remove(id: Long) {

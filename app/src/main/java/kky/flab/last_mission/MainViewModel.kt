@@ -16,9 +16,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
 import retrofit2.HttpException
@@ -30,7 +32,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val githubUserSearchRepository: GithubUserSearchRepository
-): ViewModel() {
+) : ViewModel() {
 
     private val _searchState: MutableStateFlow<MainUiState> = MutableStateFlow(MainUiState.Loading)
     val searchState: StateFlow<MainUiState> = _searchState.asStateFlow()
@@ -38,49 +40,67 @@ class MainViewModel @Inject constructor(
     private val _keywordFlow: MutableStateFlow<String> = MutableStateFlow("")
     val keywordFlow: StateFlow<String> = _keywordFlow.asStateFlow()
 
+    private val _loadData: MutableStateFlow<Boolean> = MutableStateFlow(true)
+
     init {
-       collectKeywordFlow()
+        collectKeywordFlow()
+        _loadData.onEach {
+            Log.d("MainViewModel", it.toString())
+        }.launchIn(viewModelScope)
     }
 
     fun collectKeywordFlow() = flow { emit(true) }
-        .flatMapLatest { _keywordFlow }
+        .flatMapLatest { keywordFlow }
+        .onEach { _loadData.value = true }
         .debounce(200)
-        .flatMapLatest { keyword ->
-            githubUserSearchRepository.flowSearchUser(keyword)
+        .flatMapLatest { keyword -> _loadData.map { loading -> Pair(keyword, loading) } }
+        .filter { data ->
+            data.second
+        }
+        .flatMapLatest {
+            data -> githubUserSearchRepository.flowSearchUser(data.first)
         }
         .retryWhen { cause, attempt ->
-            when(cause) {
+            when (cause) {
                 is SocketTimeoutException -> attempt < 1
                 is UnknownHostException -> attempt < 1
                 is HttpException -> false
                 else -> false
             }
-        }
-        .catch {
-            when(it) {
-                is SocketTimeoutException,
-                is UnknownHostException -> {
+        }.catch {
+            when (it) {
+                is SocketTimeoutException, is UnknownHostException -> {
                     _searchState.value = MainUiState.Fail("네트워크 상태를 확인해주세요.")
                 }
+
                 is HttpException -> {
                     _searchState.value = MainUiState.Fail(it.message ?: "서버 에러")
                 }
+
                 else -> {
                     _searchState.value = MainUiState.Fail("알 수 없는 에러가 발생했습니다.")
                 }
             }
         }
-        .onEach { users ->
-            _searchState.value = MainUiState.Success(users)
+        .onEach {
+            users -> _searchState.value = MainUiState.Success(users)
         }
         .launchIn(viewModelScope)
+
+    fun loadMore() {
+        Log.d("MainViewModel", "loadMore")
+        _loadData.value = true
+    }
 
     fun onChangeKeyword(keyword: String) {
         _keywordFlow.value = keyword
     }
 
     fun saveMemo(user: GithubUser, memo: String) {
-        githubUserSearchRepository.memo(user.id, memo)
+        githubUserSearchRepository.memo(
+            user.id,
+            memo
+        )
     }
 
     fun removeUser(user: GithubUser) {

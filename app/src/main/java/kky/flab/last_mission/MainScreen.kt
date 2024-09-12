@@ -1,5 +1,6 @@
 package kky.flab.last_mission
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,6 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kky.flab.last_mission.repository.model.GithubUser
 import kky.flab.last_mission.ui.component.GithubUserItem
+import kky.flab.last_mission.ui.component.LoadableLazyColumn
 import kky.flab.last_mission.ui.model.MainUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +41,8 @@ fun MainScreen(
 ) {
     val keyword = viewModel.keywordFlow.collectAsStateWithLifecycle().value
     val state = viewModel.searchState.collectAsStateWithLifecycle().value
+
+    Log.d("MainScreen", state.toString())
 
     Scaffold(
         topBar = {
@@ -58,7 +61,9 @@ fun MainScreen(
             when (state) {
                 is MainUiState.Fail -> FailContent(
                     message = state.message,
-                    onRetry = { viewModel.collectKeywordFlow() },
+                    onRetry = {
+                        viewModel.collectKeywordFlow()
+                    }
                 )
 
                 MainUiState.Loading -> { /* */ }
@@ -68,6 +73,7 @@ fun MainScreen(
                         data = state.data,
                         onSaveMemo = viewModel::saveMemo,
                         onClickItem = viewModel::removeUser,
+                        onLoadMore = viewModel::loadMore,
                     )
                 }
             }
@@ -110,10 +116,12 @@ fun SearchBar(
 fun GithubUserList(
     data: List<GithubUser>,
     onClickItem: (GithubUser) -> Unit,
-    onSaveMemo: (GithubUser, String) -> Unit
+    onSaveMemo: (GithubUser, String) -> Unit,
+    onLoadMore: () -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize()
+    LoadableLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        onLoad = onLoadMore
     ) {
         items(data) { user ->
             GithubUserItem(
