@@ -42,8 +42,6 @@ fun MainScreen(
     val keyword = viewModel.keywordFlow.collectAsStateWithLifecycle().value
     val state = viewModel.searchState.collectAsStateWithLifecycle().value
 
-    Log.d("MainScreen", state.toString())
-
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(text = "GithubUserSearch") })
@@ -61,9 +59,7 @@ fun MainScreen(
             when (state) {
                 is MainUiState.Fail -> FailContent(
                     message = state.message,
-                    onRetry = {
-                        viewModel.collectKeywordFlow()
-                    }
+                    onRetry = viewModel::retry
                 )
 
                 MainUiState.Loading -> { /* */ }
@@ -73,7 +69,7 @@ fun MainScreen(
                         data = state.data,
                         onSaveMemo = viewModel::saveMemo,
                         onClickItem = viewModel::removeUser,
-                        onLoadMore = viewModel::loadMore,
+                        onLoadMore = {},
                     )
                 }
             }

@@ -1,5 +1,6 @@
 package kky.flab.last_mission.repository.model
 
+import android.util.Log
 import kky.flab.last_mission.network.api.GithubSearchApi
 import kky.flab.last_mission.repository.GithubUserSearchRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,7 +21,7 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
 
     private val perPage = 40
 
-    private var cachedList: MutableList<GithubUser> = mutableListOf()
+    private var cachedList: List<GithubUser> = emptyList()
 
     private var cachedKeyword: String = ""
 
@@ -33,7 +34,7 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
             page++
         } else {
             page = 1
-            cachedList.clear()
+            cachedList = listOf()
             cachedKeyword = keyword
         }
 
@@ -57,7 +58,9 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
             }
         }
     }.map {
-        cachedList.apply { addAll(it) }
+        cachedList.toMutableList().apply {
+            addAll(it)
+        }
     }
 
     override fun remove(id: Long) {
