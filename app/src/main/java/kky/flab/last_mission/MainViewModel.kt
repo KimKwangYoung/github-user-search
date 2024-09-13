@@ -2,7 +2,6 @@
 
 package kky.flab.last_mission
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,10 +13,10 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
@@ -30,7 +29,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val githubUserSearchRepository: GithubUserSearchRepository
-): ViewModel() {
+) : ViewModel() {
 
     private val _searchState: MutableStateFlow<MainUiState> = MutableStateFlow(MainUiState.Loading)
     val searchState: StateFlow<MainUiState> = _searchState.asStateFlow()
@@ -38,49 +37,72 @@ class MainViewModel @Inject constructor(
     private val _keywordFlow: MutableStateFlow<String> = MutableStateFlow("")
     val keywordFlow: StateFlow<String> = _keywordFlow.asStateFlow()
 
+    private val _retry: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
+    private val _loadMore: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
     init {
-       collectKeywordFlow()
+        collectKeywordFlow()
     }
 
-    fun collectKeywordFlow() = flow { emit(true) }
-        .flatMapLatest { _keywordFlow }
-        .debounce(200)
-        .flatMapLatest { keyword ->
-            githubUserSearchRepository.flowSearchUser(keyword)
-        }
-        .retryWhen { cause, attempt ->
-            when(cause) {
-                is SocketTimeoutException -> attempt < 1
-                is UnknownHostException -> attempt < 1
-                is HttpException -> false
-                else -> false
+    private fun collectKeywordFlow() = _retry
+        .filter { it }
+        .onEach { _retry.value = false }
+        .flatMapLatest {
+            combine(keywordFlow, _loadMore) { keyword, loadMore ->
+                keyword to loadMore
             }
         }
-        .catch {
-            when(it) {
-                is SocketTimeoutException,
-                is UnknownHostException -> {
+        .filter { (_, loadMore) -> loadMore }
+        .onEach { _loadMore.value = false }
+        .debounce(200)
+        .flatMapLatest { (keyword, _) ->
+            githubUserSearchRepository.flowSearchUser(keyword)
+        }
+        .retryWhen { cause, _ ->
+            when (cause) {
+                is SocketTimeoutException, is UnknownHostException -> {
                     _searchState.value = MainUiState.Fail("네트워크 상태를 확인해주세요.")
                 }
+
                 is HttpException -> {
-                    _searchState.value = MainUiState.Fail(it.message ?: "서버 에러")
+                    _searchState.value = MainUiState.Fail(cause.message ?: "서버 에러")
                 }
+
                 else -> {
                     _searchState.value = MainUiState.Fail("알 수 없는 에러가 발생했습니다.")
                 }
             }
+            true
         }
         .onEach { users ->
             _searchState.value = MainUiState.Success(users)
         }
         .launchIn(viewModelScope)
 
+    fun retry() {
+        _loadMore.value = true
+        _retry.value = true
+    }
+
+    fun loadMore() {
+        _loadMore.value = true
+    }
+
     fun onChangeKeyword(keyword: String) {
+        if (_retry.value.not()) {
+            _retry.value = true
+        }
+
+        _loadMore.value = true
         _keywordFlow.value = keyword
     }
 
     fun saveMemo(user: GithubUser, memo: String) {
-        githubUserSearchRepository.memo(user.id, memo)
+        githubUserSearchRepository.memo(
+            user.id,
+            memo
+        )
     }
 
     fun removeUser(user: GithubUser) {

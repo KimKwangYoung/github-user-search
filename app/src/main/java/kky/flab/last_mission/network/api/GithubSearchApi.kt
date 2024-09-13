@@ -8,6 +8,8 @@ import retrofit2.http.Query
 interface GithubSearchApi {
     @GET("/search/users")
     suspend fun search(
-        @Query("q") keyword: String
+        @Query("q") keyword: String,
+        @Query("page") page: Int,
+        @Query("per_page") perPage: Int,
     ): GithubSearchResponse<GithubUserData>
 }
