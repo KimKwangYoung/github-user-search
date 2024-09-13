@@ -13,6 +13,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
@@ -47,9 +48,17 @@ class MainViewModel @Inject constructor(
     private fun collectKeywordFlow() = _retry
         .filter { it }
         .onEach { _retry.value = false }
-        .flatMapLatest { keywordFlow }
+        .flatMapLatest {
+            combine(keywordFlow, _loadMore) { keyword, loadMore ->
+                keyword to loadMore
+            }
+        }
+        .filter { (_, loadMore) -> loadMore }
+        .onEach { _loadMore.value = false }
         .debounce(200)
-        .flatMapLatest { keyword -> githubUserSearchRepository.flowSearchUser(keyword) }
+        .flatMapLatest { (keyword, _) ->
+            githubUserSearchRepository.flowSearchUser(keyword)
+        }
         .retryWhen { cause, _ ->
             when (cause) {
                 is SocketTimeoutException, is UnknownHostException -> {
@@ -72,7 +81,12 @@ class MainViewModel @Inject constructor(
         .launchIn(viewModelScope)
 
     fun retry() {
+        _loadMore.value = true
         _retry.value = true
+    }
+
+    fun loadMore() {
+        _loadMore.value = true
     }
 
     fun onChangeKeyword(keyword: String) {
@@ -80,6 +94,7 @@ class MainViewModel @Inject constructor(
             _retry.value = true
         }
 
+        _loadMore.value = true
         _keywordFlow.value = keyword
     }
 

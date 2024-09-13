@@ -17,7 +17,7 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
     private val githubSearchApi: GithubSearchApi,
 ) : GithubUserSearchRepository {
 
-    private var page = 0
+    private var page = 1
 
     private val perPage = 40
 
@@ -57,10 +57,11 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
                 item.toDomain(memo ?: "")
             }
         }
-    }.map {
-        cachedList.toMutableList().apply {
-            addAll(it)
+    }.map { users ->
+        cachedList = cachedList.toMutableList().apply {
+            addAll(users)
         }
+        cachedList
     }
 
     override fun remove(id: Long) {

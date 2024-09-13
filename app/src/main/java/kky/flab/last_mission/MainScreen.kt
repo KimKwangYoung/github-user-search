@@ -69,7 +69,7 @@ fun MainScreen(
                         data = state.data,
                         onSaveMemo = viewModel::saveMemo,
                         onClickItem = viewModel::removeUser,
-                        onLoadMore = {},
+                        onLoadMore = viewModel::loadMore,
                     )
                 }
             }
