@@ -41,11 +41,20 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
         val list = if (keyword.isEmpty()) {
             emptyList()
         } else {
-            val response = githubSearchApi.search(keyword, page, perPage)
+            val response = githubSearchApi.search(
+                keyword,
+                page,
+                perPage
+            )
             response.items.sortedBy { it.name }
         }
 
         emit(list)
+    }.map { items ->
+        cachedList = cachedList.toMutableList().apply {
+            addAll(items.map { item -> item.toDomain() })
+        }
+        cachedList
     }.flatMapLatest { items ->
         removedStateFlow.map { removed ->
             items.filter { item -> removed.contains(item.id).not() }
@@ -53,15 +62,10 @@ class GithubUserSearchRepositoryImpl @Inject constructor(
     }.flatMapLatest { items ->
         memoStateFlow.map { memoMap ->
             items.map { item ->
-                val memo = memoMap[item.id]
-                item.toDomain(memo ?: "")
+                val memo = memoMap[item.id] ?: ""
+                item.copy(memo = memo)
             }
         }
-    }.map { users ->
-        cachedList = cachedList.toMutableList().apply {
-            addAll(users)
-        }
-        cachedList
     }
 
     override fun remove(id: Long) {
